@@ -36,4 +36,4 @@ EXPOSE 8000
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Run migrations then start the server
-CMD echo "DATABASE_URL=$DATABASE_URL" && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
