@@ -1,0 +1,10 @@
+## Resume
+{resume_text}
+
+## Job Posting
+**Title:** {job_title}
+**Company:** {company_name}
+**Location:** {location}
+
+**Description:**
+{job_description}

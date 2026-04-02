@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Prospector{% endblock %}
+
+{% block content %}
+{% if not current_profile %}
+<div class="text-center py-20">
+    <h2 class="text-2xl font-semibold text-gray-700 mb-2">No profiles yet</h2>
+    <p class="text-gray-500 mb-4">Create a profile to start searching for jobs.</p>
+    <a href="/profiles" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Create Profile</a>
+</div>
+{% else %}
+
+<!-- Header: Profile info + Actions -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">{{ current_profile.name }}</h1>
+        <p class="text-sm text-gray-500">
+            {{ jobs | length }} jobs
+            {% if jobs %}· avg score {{ "%.0f" | format(avg_score) }}{% endif %}
+        </p>
+    </div>
+    <div class="flex gap-2">
+        <button
+            hx-post="/api/profiles/{{ current_profile.id }}/scrape"
+            hx-swap="none"
+            hx-indicator="#scrape-spinner"
+            hx-on::after-request="window.location.reload()"
+            class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-700"
+        >
+            Run Scraper
+            <span id="scrape-spinner" htmx-indicator class="ml-1">⏳</span>
+        </button>
+        <button
+            hx-post="/api/profiles/{{ current_profile.id }}/evaluate"
+            hx-swap="none"
+            hx-indicator="#eval-spinner"
+            hx-on::after-request="window.location.reload()"
+            class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-700"
+        >
+            Run Evaluator
+            <span id="eval-spinner" htmx-indicator class="ml-1">⏳</span>
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<form class="flex gap-4 mb-4 items-end" method="get" action="/">
+    <input type="hidden" name="profile_id" value="{{ current_profile.id }}">
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Status</label>
+        <select name="status" class="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white">
+            <option value="">All</option>
+            {% for s in ["new", "evaluated", "applied", "rejected", "interview"] %}
+            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s | capitalize }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Min Score</label>
+        <input type="number" name="min_score" value="{{ filter_min_score or '' }}"
+               placeholder="0" min="0" max="100"
+               class="border border-gray-300 rounded-md px-3 py-1.5 text-sm w-20">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-500 mb-1">Search Query</label>
+        <select name="search_query" class="border border-gray-300 rounded-md px-3 py-1.5 text-sm bg-white">
+            <option value="">All queries</option>
+            {% for q in search_queries %}
+            <option value="{{ q }}" {% if filter_query == q %}selected{% endif %}>{{ q }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="bg-gray-800 text-white px-4 py-1.5 rounded-md text-sm hover:bg-gray-900">Filter</button>
+</form>
+
+<!-- Job Table -->
+{% if jobs %}
+<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Title</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Company</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+                <th class="text-center px-4 py-3 font-medium text-gray-600">Score</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+                <th class="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for job in jobs %}
+            <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location.href='/jobs/{{ job.id }}'">
+                <td class="px-4 py-3 font-medium text-gray-900">{{ job.job_title }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ job.company_name }}</td>
+                <td class="px-4 py-3 text-gray-500">{{ job.location or "—" }}</td>
+                <td class="px-4 py-3 text-center">
+                    {% if job.match_score is not none %}
+                    <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold
+                        {% if job.match_score >= 75 %}bg-green-100 text-green-800
+                        {% elif job.match_score >= 50 %}bg-yellow-100 text-yellow-800
+                        {% else %}bg-red-100 text-red-800{% endif %}
+                    ">{{ job.match_score }}</span>
+                    {% else %}
+                    <span class="text-gray-400">—</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    <span class="inline-block px-2 py-0.5 rounded text-xs
+                        {% if job.application_status == 'new' %}bg-blue-50 text-blue-700
+                        {% elif job.application_status == 'evaluated' %}bg-purple-50 text-purple-700
+                        {% elif job.application_status == 'applied' %}bg-green-50 text-green-700
+                        {% elif job.application_status == 'interview' %}bg-amber-50 text-amber-700
+                        {% else %}bg-gray-50 text-gray-700{% endif %}
+                    ">{{ job.application_status }}</span>
+                </td>
+                <td class="px-4 py-3 text-gray-500">{{ job.date_added.strftime('%b %d') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+    <p>No jobs match your filters.</p>
+    <p class="text-sm mt-1">Try running the scraper or adjusting your filters.</p>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
