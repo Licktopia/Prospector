@@ -164,6 +164,29 @@ async def update_resume(
     return {"id": profile.id, "name": profile.name, "status": "resume_updated"}
 
 
+@router.patch("/{profile_id}")
+async def update_profile(
+    profile_id: int,
+    data: dict,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Update profile fields (name, target_queries, target_locations)."""
+    profile = await session.get(Profile, profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    if "name" in data:
+        profile.name = data["name"]
+    if "target_queries" in data:
+        profile.target_queries = data["target_queries"]
+    if "target_locations" in data:
+        profile.target_locations = data["target_locations"]
+
+    await session.commit()
+    logger.info("Updated profile %d: %s", profile.id, profile.name)
+    return {"id": profile.id, "name": profile.name, "status": "updated"}
+
+
 @router.get("/{profile_id}")
 async def get_profile(
     profile_id: int,

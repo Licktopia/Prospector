@@ -5,6 +5,7 @@ import JobTable from './components/JobTable';
 import JobDetail from './components/JobDetail';
 import Filters from './components/Filters';
 import CreateProfileModal from './components/CreateProfileModal';
+import EditProfileModal from './components/EditProfileModal';
 
 export default function App() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -15,6 +16,7 @@ export default function App() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const [showCreateProfile, setShowCreateProfile] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
 
   // Filters
   const [filterStatus, setFilterStatus] = useState('');
@@ -159,9 +161,20 @@ export default function App() {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  {currentProfile?.name ?? 'No profile'}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold text-gray-900">
+                    {currentProfile?.name ?? 'No profile'}
+                  </h1>
+                  {currentProfile && (
+                    <button
+                      onClick={() => setShowEditProfile(true)}
+                      className="text-gray-400 hover:text-gray-600 text-sm"
+                      title="Edit profile"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500">
                   {jobs.length} jobs {scoredJobs.length > 0 && `· avg score ${avgScore}`}
                 </p>
@@ -223,6 +236,17 @@ export default function App() {
           </div>
         )}
       </div>
+      {showEditProfile && currentProfile && (
+        <EditProfileModal
+          profile={currentProfile}
+          onClose={() => setShowEditProfile(false)}
+          onUpdated={() => {
+            getProfiles().then((p) => {
+              setProfiles(p);
+            });
+          }}
+        />
+      )}
       {showCreateProfile && (
         <CreateProfileModal
           onClose={() => setShowCreateProfile(false)}
