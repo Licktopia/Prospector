@@ -35,5 +35,8 @@ EXPOSE 8000
 # Use the venv Python directly (uv run can swallow env vars)
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Railway sets PORT env var; default to 8000 for local
+ENV PORT=8000
+
 # Run migrations then start the server
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000
+CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
