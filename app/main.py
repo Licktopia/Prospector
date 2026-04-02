@@ -53,8 +53,9 @@ app.add_middleware(
 app.include_router(profiles_router)
 app.include_router(jobs_router)
 
-# Web view routes (templates)
-app.include_router(views_router)
+# Jinja2 template routes only when React build is NOT present (local dev fallback)
+if not FRONTEND_DIR.exists():
+    app.include_router(views_router)
 
 
 @app.get("/health")
