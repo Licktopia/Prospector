@@ -11,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.profiles import router as profiles_router
 from app.api.jobs import router as jobs_router
-from app.api.views import router as views_router
 from app.scheduler import start_scheduler, shutdown_scheduler
 
 logging.basicConfig(
@@ -53,9 +52,7 @@ app.add_middleware(
 app.include_router(profiles_router)
 app.include_router(jobs_router)
 
-# Jinja2 template routes only when React build is NOT present (local dev fallback)
-if not FRONTEND_DIR.exists():
-    app.include_router(views_router)
+
 
 
 @app.get("/health")
