@@ -1,5 +1,6 @@
 """SerpAPI Google Jobs integration for scraping job postings."""
 
+import hashlib
 import logging
 from typing import Any
 
@@ -25,7 +26,8 @@ def _build_job_url(job: dict[str, Any]) -> str:
     apply_options = job.get("apply_options", [])
     if apply_options:
         return apply_options[0].get("link", "")
-    return f"serpapi-{hash(job.get('title', '') + job.get('company_name', ''))}"
+    key = (job.get("title", "") + job.get("company_name", "")).encode()
+    return f"serpapi-{hashlib.sha256(key).hexdigest()[:16]}"
 
 
 def _extract_apply_links(job: dict[str, Any]) -> list[dict[str, str]]:

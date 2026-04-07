@@ -1,8 +1,7 @@
 """LangChain-powered job evaluation pipeline using Claude.
 
-Two-pass evaluation: scores all jobs, generates cover letters only for
-high-scoring matches (>= threshold). On-demand cover letter generation
-available for any job via generate_cover_letter().
+Single-pass scoring: scores all jobs quickly with brief reasoning.
+Cover letters are generated on demand via generate_cover_letter().
 """
 
 import asyncio
@@ -17,13 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db.models import JobPosting, Profile
-from app.schemas.schemas import CoverLetterResult, JobEvaluation, JobScore
+from app.schemas.schemas import CoverLetterResult, JobScore
 
 logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
-
-COVER_LETTER_SCORE_THRESHOLD = 70
 
 # Model identifiers for LangChain
 MODELS = {
@@ -45,29 +42,9 @@ def _build_scoring_chain(api_key: str, system_prompt: str):
     llm = ChatAnthropic(
         model=MODELS["sonnet"],
         api_key=api_key,
-        max_tokens=1024,
+        max_tokens=256,
     )
     structured_llm = llm.with_structured_output(JobScore)
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        ("human", _load_prompt("evaluator_human.txt")),
-    ])
-
-    return prompt | structured_llm
-
-
-def _build_full_chain(api_key: str, system_prompt: str):
-    """Build a chain that scores a job AND generates a cover letter.
-
-    Uses the full JobEvaluation schema for high-scoring matches.
-    """
-    llm = ChatAnthropic(
-        model=MODELS["sonnet"],
-        api_key=api_key,
-        max_tokens=2048,
-    )
-    structured_llm = llm.with_structured_output(JobEvaluation)
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
@@ -100,12 +77,9 @@ def _build_cover_letter_chain(api_key: str, model: str = "sonnet"):
 
 
 async def evaluate_jobs(profile: Profile, session: AsyncSession) -> dict[str, int | float]:
-    """Evaluate all unevaluated jobs for a profile using LangChain + Claude.
+    """Score all unevaluated jobs for a profile using LangChain + Claude.
 
-    Two-pass approach:
-    1. Score all jobs (fast, no cover letter)
-    2. Generate cover letters only for jobs scoring >= COVER_LETTER_SCORE_THRESHOLD
-
+    Single-pass scoring only — cover letters are generated on demand.
     Returns a summary dict with counts and average score.
     """
     settings = get_settings()
@@ -123,17 +97,13 @@ async def evaluate_jobs(profile: Profile, session: AsyncSession) -> dict[str, in
         logger.info("No unevaluated jobs for profile %d", profile.id)
         return {"jobs_evaluated": 0, "avg_score": 0}
 
-    # Build chains
+    # Build scoring chain
     scorer_prompt = _load_prompt("scorer_system.txt")
     system_prompt = profile.evaluator_prompt or scorer_prompt
     scoring_chain = _build_scoring_chain(settings.anthropic_api_key, system_prompt)
 
-    full_system_prompt = profile.evaluator_prompt or _load_prompt("evaluator_system.txt")
-    full_chain = _build_full_chain(settings.anthropic_api_key, full_system_prompt)
-
     evaluated = 0
     total_score = 0
-    cover_letters_generated = 0
 
     for job in jobs:
         logger.info(
@@ -149,7 +119,6 @@ async def evaluate_jobs(profile: Profile, session: AsyncSession) -> dict[str, in
         }
 
         try:
-            # First pass: score only
             score_result: JobScore = await scoring_chain.ainvoke(invoke_args)
 
             job.match_score = score_result.match_score
@@ -165,16 +134,6 @@ async def evaluate_jobs(profile: Profile, session: AsyncSession) -> dict[str, in
                 job.id, score_result.match_score, score_result.match_reasoning[:80],
             )
 
-            # Second pass: cover letter for high-scoring jobs
-            if score_result.match_score >= COVER_LETTER_SCORE_THRESHOLD:
-                logger.info(
-                    "Generating cover letter for job %d (score %d >= %d)",
-                    job.id, score_result.match_score, COVER_LETTER_SCORE_THRESHOLD,
-                )
-                full_result: JobEvaluation = await full_chain.ainvoke(invoke_args)
-                job.cover_letter = full_result.cover_letter
-                cover_letters_generated += 1
-
         except Exception:
             logger.exception("Failed to evaluate job %d", job.id)
             continue
@@ -188,12 +147,11 @@ async def evaluate_jobs(profile: Profile, session: AsyncSession) -> dict[str, in
     summary = {
         "jobs_evaluated": evaluated,
         "avg_score": avg_score,
-        "cover_letters_generated": cover_letters_generated,
     }
 
     logger.info(
-        "Evaluation complete for profile %d: %d jobs, avg score %.1f, %d cover letters",
-        profile.id, evaluated, avg_score, cover_letters_generated,
+        "Evaluation complete for profile %d: %d jobs, avg score %.1f",
+        profile.id, evaluated, avg_score,
     )
     return summary
 
