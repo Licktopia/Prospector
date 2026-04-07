@@ -50,11 +50,10 @@ async def daily_scrape_and_evaluate():
 
                 eval_summary = await evaluate_jobs(profile, session)
                 logger.info(
-                    "Profile %d evaluate: %d scored, avg %.1f, %d cover letters",
+                    "Profile %d evaluate: %d scored, avg %.1f",
                     profile.id,
                     eval_summary["jobs_evaluated"],
                     eval_summary["avg_score"],
-                    eval_summary.get("cover_letters_generated", 0),
                 )
             except Exception:
                 logger.exception("Failed processing profile %d", profile.id)
