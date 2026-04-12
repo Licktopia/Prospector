@@ -1,6 +1,6 @@
-"""Daily scheduled scrape + evaluate for all active profiles.
+"""Scheduled scrape + evaluate for all active profiles.
 
-Uses APScheduler to run once per day at a configurable time. The job runs
+Uses APScheduler to run twice per week at a configurable time. The job runs
 inside the existing FastAPI process — no external cron needed.
 """
 
@@ -17,14 +17,15 @@ from app.services.evaluator import evaluate_jobs
 
 logger = logging.getLogger(__name__)
 
-# Run daily at 6 AM UTC (midnight MDT)
+# Run Monday and Thursday at 6 AM UTC (midnight MDT)
+SCHEDULE_DAY_OF_WEEK = "mon,thu"
 SCHEDULE_HOUR = 6
 SCHEDULE_MINUTE = 0
 
 
-async def daily_scrape_and_evaluate():
+async def scrape_and_evaluate():
     """Scrape then evaluate jobs for every active profile."""
-    logger.info("Scheduled job starting: daily scrape + evaluate")
+    logger.info("Scheduled job starting: scrape + evaluate")
 
     async with async_session_factory() as session:
         result = await session.execute(
@@ -63,18 +64,23 @@ async def daily_scrape_and_evaluate():
 
 
 def start_scheduler() -> AsyncIOScheduler:
-    """Start the APScheduler with the daily job."""
+    """Start the APScheduler with the twice-weekly job."""
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        daily_scrape_and_evaluate,
-        trigger=CronTrigger(hour=SCHEDULE_HOUR, minute=SCHEDULE_MINUTE),
-        id="daily_scrape_evaluate",
-        name="Daily scrape + evaluate",
+        scrape_and_evaluate,
+        trigger=CronTrigger(
+            day_of_week=SCHEDULE_DAY_OF_WEEK,
+            hour=SCHEDULE_HOUR,
+            minute=SCHEDULE_MINUTE,
+        ),
+        id="scrape_evaluate",
+        name="Twice-weekly scrape + evaluate",
         replace_existing=True,
     )
     scheduler.start()
     logger.info(
-        "Scheduler started — daily job at %02d:%02d UTC",
+        "Scheduler started — job runs %s at %02d:%02d UTC",
+        SCHEDULE_DAY_OF_WEEK,
         SCHEDULE_HOUR,
         SCHEDULE_MINUTE,
     )
